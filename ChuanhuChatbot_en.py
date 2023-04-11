@@ -162,10 +162,10 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                                 with gr.Column():
                                     downloadFile = gr.File(interactive=True)
 
-                with gr.Tab(label="高级"):
-                    gr.Markdown("# ⚠️ 务必谨慎更改 ⚠️\n\n如果无法使用请恢复默认设置")
+                with gr.Tab(label=apply_translation(translation_mapping, "高级", language_selector)):
+                    gr.Markdown(apply_translation(translation_mapping, "# ⚠️ 务必谨慎更改 ⚠️\n\n如果无法使用请恢复默认设置", language_selector))
                     gr.HTML(APPEARANCE_SWITCHER, elem_classes="insert_block")
-                    with gr.Accordion("参数", open=False):
+                    with gr.Accordion(apply_translation(translation_mapping, "参数", language_selector), open=False):
                         temperature_slider = gr.Slider(
                             minimum=-0,
                             maximum=2.0,
@@ -192,7 +192,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                         )
                         stop_sequence_txt = gr.Textbox(
                             show_label=True,
-                            placeholder=f"在这里输入停止符，用英文逗号隔开...",
+                            placeholder=apply_translation(translation_mapping, "在这里输入停止符，用英文逗号隔开...", language_selector),
                             label="stop",
                             value="",
                             lines=1,
@@ -238,17 +238,17 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                         )
                         user_identifier_txt = gr.Textbox(
                             show_label=True,
-                            placeholder=f"用于定位滥用行为",
-                            label="用户名",
+                            placeholder=apply_translation(translation_mapping, "用于定位滥用行为", language_selector),
+                            label=apply_translation(translation_mapping, "用户名", language_selector),
                             value=user_name.value,
                             lines=1,
                         )
 
-                    with gr.Accordion("网络设置", open=False):
+                    with gr.Accordion(apply_translation(translation_mapping, "网络设置", language_selector), open=False):
                         # 优先展示自定义的api_host
                         apihostTxt = gr.Textbox(
                             show_label=True,
-                            placeholder=f"在这里输入API-Host...",
+                            placeholder=apply_translation(translation_mapping,"在这里输入API-Host...", language_selector),
                             label="API-Host",
                             value=config.api_host or shared.API_HOST,
                             lines=1,

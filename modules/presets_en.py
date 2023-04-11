@@ -35,18 +35,14 @@ CONCURRENT_COUNT = 100 # 允许同时使用的用户数量
 SIM_K = 5
 INDEX_QUERY_TEMPRATURE = 1.0
 
-CHUANHU_TITLE = """<h1 align="left">A.I Assistant</h1>"""
+CHUANHU_TITLE = """<h1 align="left">A.I. Assistant</h1>"""
 CHUANHU_DESCRIPTION = """\
 <div align="center" style="margin:16px 0">
-
-由Bilibili [土川虎虎虎](https://space.bilibili.com/29125536) 和 [明昭MZhao](https://space.bilibili.com/24807452)开发
-
-访问川虎Chat的 [GitHub项目](https://github.com/GaiZhenbiao/ChuanhuChatGPT) 下载最新版脚本
-
+Copyright reserved
 </div>
 """
 
-FOOTER = """<div class="versions">{versions}</div>"""
+FOOTER = """Version 0.0.0"""
 
 APPEARANCE_SWITCHER = """
 <div style="display: flex; justify-content: space-between;">
@@ -105,7 +101,7 @@ REDUCE_TOKEN_FACTOR = 0.5 # 与模型token上限想乘，得到目标token数。
 
 REPLY_LANGUAGES = [
     "English",
-    "Malay"
+    "Malay",
     "简体中文",
     "繁體中文",
     "日本語",
