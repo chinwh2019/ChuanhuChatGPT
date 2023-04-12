@@ -8,7 +8,7 @@ import gradio as gr
 from modules import config
 from modules.config import *
 from modules.utils import *
-from modules.presets_en import *
+from modules.presets import *
 from modules.overwrites import *
 from modules.models import ModelManager
 from modules.translation_mapping import *
