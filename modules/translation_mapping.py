@@ -1,0 +1,73 @@
+# -*- coding:utf-8 -*-
+
+translation_mapping = {
+    "🧹 新的对话": "🧹 New conversation",
+    "在这里输入": "Enter here",
+    "🔄 重新生成": "🔄 Regenerate",
+    "🗑️ 删除最旧对话": "🗑️ Delete oldest conversation",
+    "🗑️ 删除最新对话": "🗑️ Delete latest conversation",
+    "模型": "Model",
+    "多账号模式已开启，无需输入key，可直接开始对话": "Multi-account mode is enabled, no need to enter key, you can start the conversation directly",
+    "**发送消息** 或 **提交key** 以显示额度": "**Send message** or **submit key** to display quota",
+    "未命名对话历史记录": "Unnamed Conversation History",
+    "在这里输入": "Type here",
+    "发送消息": "Send message",
+    "提交key": "Submit key",
+    "以显示额度": "to display quota",
+    "选择模型": "Select model",
+    "选择LoRA模型": "Select LoRA model",
+    "实时传输回答": "Real-time response transmission",
+    "单轮对话": "Single-turn conversation",
+    "使用在线搜索": "Use online search",
+    "选择回复语言（针对搜索&索引功能）": "Select response language (for search & index functions)",
+    "上传索引文件": "Upload index files",
+    "双栏pdf": "Two-column PDF",
+    "在这里输入System Prompt...": "Enter System Prompt here...",
+    "System prompt": "System prompt",
+    "加载Prompt模板": "Load Prompt Templates",
+    "选择Prompt模板集合文件": "Select Prompt Template Collection File",
+    "刷新": "Refresh",
+    "从Prompt模板中加载": "Load from Prompt Template",
+    "保存/加载": "Save/Load",
+    "保存/加载对话历史记录": "Save/Load Conversation History",
+    "从列表中加载对话": "Load Conversation from List",
+    "设置文件名: 默认为.json，可选为.md": "Set filename: Default is .json, .md is optional",
+    "设置保存文件名": "Set Save Filename",
+    "对话历史记录": "Conversation History",
+    "💾 保存对话": "💾 Save Conversation",
+    "📝 导出为Markdown": "📝 Export as Markdown",
+    "默认保存于history文件夹": "Saved by default in the history folder",
+    "高级": "Advanced",
+    "⚠️ 务必谨慎更改 ⚠️\n\n如果无法使用请恢复默认设置": "⚠️ Proceed with caution ⚠️\n\nRestore defaults if not working",
+    "参数": "Parameters",
+    "temperature": "Temperature",
+    "top-p": "Top-p",
+    "n choices": "N choices",
+    "在这里输入停止符，用英文逗号隔开...": "Enter stop tokens here, separated by commas...",
+    "stop": "Stop",
+    "max context": "Max Context",
+    "max generations": "Max Generations",
+    "presence penalty": "Presence Penalty",
+    "frequency penalty": "Frequency Penalty",
+    "word:likelihood": "word:likelihood",
+    "logit bias": "Logit Bias",
+    "用于定位滥用行为": "For identifying abusive behavior",
+    "用户名": "Username",
+    "网络设置": "Network Settings",
+    "在这里输入API-Host...": "Enter API-Host here...",
+    "API-Host": "API-Host",
+    "🔄 切换API地址": "🔄 Switch API URL",
+    "在这里输入代理地址...": "Enter proxy address here...",
+    "代理地址（示例：http://127.0.0.1:10809）": "Proxy address (example: http://127.0.0.1:10809)",
+    "🔄 设置代理地址": "🔄 Set proxy address",
+    "🔙 恢复默认设置": "🔙 Restore default settings",
+}
+
+
+def apply_translation(mapping, text, selected_language):
+    if selected_language == "English":
+        for chinese, english in mapping.items():
+            text = text.replace(chinese, english)
+    return text
+
+
