@@ -10,20 +10,23 @@ from modules.config import *
 from modules.utils import *
 from modules.presets import *
 from modules.overwrites import *
-from modules.models import ModelManager
+from modules.models import get_model
 
 gr.Chatbot.postprocess = postprocess
 PromptHelper.compact_text_chunks = compact_text_chunks
 
-current_model = ModelManager(model_name = MODELS[DEFAULT_MODEL], access_key = my_api_key)
-
 with open("assets/custom.css", "r", encoding="utf-8") as f:
     customCSS = f.read()
+
+def create_new_model():
+    return get_model(model_name = MODELS[DEFAULT_MODEL], access_key = my_api_key)[0]
 
 with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     user_name = gr.State("")
     promptTemplates = gr.State(load_template(get_template_names(plain=True)[0], mode=2))
     user_question = gr.State("")
+    user_api_key = gr.State(my_api_key)
+    current_model = gr.State(create_new_model)
 
     topic = gr.State("未命名对话历史记录")
 
@@ -69,7 +72,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                     keyTxt = gr.Textbox(
                         show_label=True,
                         placeholder=f"OpenAI API-key...",
-                        value=hide_middle_chars(my_api_key),
+                        value=hide_middle_chars(user_api_key.value),
                         type="password",
                         visible=not HIDE_MY_KEY,
                         label="API-Key",
@@ -265,8 +268,9 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     gr.Markdown(CHUANHU_DESCRIPTION)
     gr.HTML(FOOTER.format(versions=versions_html()), elem_id="footer")
     chatgpt_predict_args = dict(
-        fn=current_model.predict,
+        fn=predict,
         inputs=[
+            current_model,
             user_question,
             chatbot,
             use_streaming_checkbox,
@@ -298,18 +302,18 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     )
 
     get_usage_args = dict(
-        fn=current_model.billing_info, inputs=None, outputs=[usageTxt], show_progress=False
+        fn=billing_info, inputs=[current_model], outputs=[usageTxt], show_progress=False
     )
 
     load_history_from_file_args = dict(
-        fn=current_model.load_chat_history,
-        inputs=[historyFileSelectDropdown, chatbot, user_name],
+        fn=load_chat_history,
+        inputs=[current_model, historyFileSelectDropdown, chatbot, user_name],
         outputs=[saveFileName, systemPromptTxt, chatbot]
     )
 
 
     # Chatbot
-    cancelBtn.click(current_model.interrupt, [], [])
+    cancelBtn.click(interrupt, [current_model], [])
 
     user_input.submit(**transfer_input_args).then(**chatgpt_predict_args).then(**end_outputing_args)
     user_input.submit(**get_usage_args)
@@ -318,15 +322,17 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     submitBtn.click(**get_usage_args)
 
     emptyBtn.click(
-        current_model.reset,
+        reset,
+        inputs=[current_model],
         outputs=[chatbot, status_display],
         show_progress=True,
     )
     emptyBtn.click(**reset_textbox_args)
 
     retryBtn.click(**start_outputing_args).then(
-        current_model.retry,
+        retry,
         [
+            current_model,
             chatbot,
             use_streaming_checkbox,
             use_websearch_checkbox,
@@ -339,14 +345,14 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     retryBtn.click(**get_usage_args)
 
     delFirstBtn.click(
-        current_model.delete_first_conversation,
-        None,
+        delete_first_conversation,
+        [current_model],
         [status_display],
     )
 
     delLastBtn.click(
-        current_model.delete_last_conversation,
-        [chatbot],
+        delete_last_conversation,
+        [current_model, chatbot],
         [chatbot, status_display],
         show_progress=False
     )
@@ -354,14 +360,14 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     two_column.change(update_doc_config, [two_column], None)
 
     # LLM Models
-    keyTxt.change(current_model.set_key, keyTxt, [status_display]).then(**get_usage_args)
+    keyTxt.change(set_key, [current_model, keyTxt], [user_api_key, status_display]).then(**get_usage_args)
     keyTxt.submit(**get_usage_args)
-    single_turn_checkbox.change(current_model.set_single_turn, single_turn_checkbox, None)
-    model_select_dropdown.change(current_model.get_model, [model_select_dropdown, lora_select_dropdown, keyTxt, temperature_slider, top_p_slider, systemPromptTxt], [status_display, lora_select_dropdown], show_progress=True)
-    lora_select_dropdown.change(current_model.get_model, [model_select_dropdown, lora_select_dropdown, keyTxt, temperature_slider, top_p_slider, systemPromptTxt], [status_display], show_progress=True)
+    single_turn_checkbox.change(set_single_turn, [current_model, single_turn_checkbox], None)
+    model_select_dropdown.change(get_model, [model_select_dropdown, lora_select_dropdown, user_api_key, temperature_slider, top_p_slider, systemPromptTxt], [current_model, status_display, lora_select_dropdown], show_progress=True)
+    lora_select_dropdown.change(get_model, [model_select_dropdown, lora_select_dropdown, user_api_key, temperature_slider, top_p_slider, systemPromptTxt], [current_model, status_display], show_progress=True)
 
     # Template
-    systemPromptTxt.change(current_model.set_system_prompt, [systemPromptTxt], None)
+    systemPromptTxt.change(set_system_prompt, [current_model, systemPromptTxt], None)
     templateRefreshBtn.click(get_template_names, None, [templateFileSelectDropdown])
     templateFileSelectDropdown.change(
         load_template,
@@ -378,15 +384,15 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
 
     # S&L
     saveHistoryBtn.click(
-        current_model.save_chat_history,
-        [saveFileName, chatbot, user_name],
+        save_chat_history,
+        [current_model, saveFileName, chatbot, user_name],
         downloadFile,
         show_progress=True,
     )
     saveHistoryBtn.click(get_history_names, [gr.State(False), user_name], [historyFileSelectDropdown])
     exportMarkdownBtn.click(
-        current_model.export_markdown,
-        [saveFileName, chatbot, user_name],
+        export_markdown,
+        [current_model, saveFileName, chatbot, user_name],
         downloadFile,
         show_progress=True,
     )
@@ -395,16 +401,16 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     downloadFile.change(**load_history_from_file_args)
 
     # Advanced
-    max_context_length_slider.change(current_model.set_token_upper_limit, [max_context_length_slider], None)
-    temperature_slider.change(current_model.set_temperature, [temperature_slider], None)
-    top_p_slider.change(current_model.set_top_p, [top_p_slider], None)
-    n_choices_slider.change(current_model.set_n_choices, [n_choices_slider], None)
-    stop_sequence_txt.change(current_model.set_stop_sequence, [stop_sequence_txt], None)
-    max_generation_slider.change(current_model.set_max_tokens, [max_generation_slider], None)
-    presence_penalty_slider.change(current_model.set_presence_penalty, [presence_penalty_slider], None)
-    frequency_penalty_slider.change(current_model.set_frequency_penalty, [frequency_penalty_slider], None)
-    logit_bias_txt.change(current_model.set_logit_bias, [logit_bias_txt], None)
-    user_identifier_txt.change(current_model.set_user_identifier, [user_identifier_txt], None)
+    max_context_length_slider.change(set_token_upper_limit, [current_model, max_context_length_slider], None)
+    temperature_slider.change(set_temperature, [current_model, temperature_slider], None)
+    top_p_slider.change(set_top_p, [current_model, top_p_slider], None)
+    n_choices_slider.change(set_n_choices, [current_model, n_choices_slider], None)
+    stop_sequence_txt.change(set_stop_sequence, [current_model, stop_sequence_txt], None)
+    max_generation_slider.change(set_max_tokens, [current_model, max_generation_slider], None)
+    presence_penalty_slider.change(set_presence_penalty, [current_model, presence_penalty_slider], None)
+    frequency_penalty_slider.change(set_frequency_penalty, [current_model, frequency_penalty_slider], None)
+    logit_bias_txt.change(set_logit_bias, [current_model, logit_bias_txt], None)
+    user_identifier_txt.change(set_user_identifier, [current_model, user_identifier_txt], None)
 
     default_btn.click(
         reset_default, [], [apihostTxt, proxyTxt, status_display], show_progress=True
@@ -432,35 +438,14 @@ demo.title = "川虎ChatGPT 🚀"
 
 if __name__ == "__main__":
     reload_javascript()
-    # if running in Docker
-    if dockerflag:
-        if authflag:
-            demo.queue(concurrency_count=CONCURRENT_COUNT).launch(
-                server_name="0.0.0.0",
-                server_port=7860,
-                auth=auth_list,
-                favicon_path="./assets/favicon.ico",
-            )
-        else:
-            demo.queue(concurrency_count=CONCURRENT_COUNT).launch(
-                server_name="0.0.0.0",
-                server_port=7860,
-                share=False,
-                favicon_path="./assets/favicon.ico",
-            )
-    # if not running in Docker
-    else:
-        if authflag:
-            demo.queue(concurrency_count=CONCURRENT_COUNT).launch(
-                share=False,
-                auth=auth_list,
-                favicon_path="./assets/favicon.ico",
-                inbrowser=True,
-            )
-        else:
-            demo.queue(concurrency_count=CONCURRENT_COUNT).launch(
-                share=False, favicon_path="./assets/favicon.ico", inbrowser=True
-            )  # 改为 share=True 可以创建公开分享链接
-        # demo.queue(concurrency_count=CONCURRENT_COUNT).launch(server_name="0.0.0.0", server_port=7860, share=False) # 可自定义端口
-        # demo.queue(concurrency_count=CONCURRENT_COUNT).launch(server_name="0.0.0.0", server_port=7860,auth=("在这里填写用户名", "在这里填写密码")) # 可设置用户名与密码
-        # demo.queue(concurrency_count=CONCURRENT_COUNT).launch(auth=("在这里填写用户名", "在这里填写密码")) # 适合Nginx反向代理
+    demo.queue(concurrency_count=CONCURRENT_COUNT).launch(
+        server_name=server_name,
+        server_port=server_port,
+        share=share,
+        auth=auth_list if authflag else None,
+        favicon_path="./assets/favicon.ico",
+        inbrowser=not dockerflag, # 禁止在docker下开启inbrowser
+    )
+    # demo.queue(concurrency_count=CONCURRENT_COUNT).launch(server_name="0.0.0.0", server_port=7860, share=False) # 可自定义端口
+    # demo.queue(concurrency_count=CONCURRENT_COUNT).launch(server_name="0.0.0.0", server_port=7860,auth=("在这里填写用户名", "在这里填写密码")) # 可设置用户名与密码
+    # demo.queue(concurrency_count=CONCURRENT_COUNT).launch(auth=("在这里填写用户名", "在这里填写密码")) # 适合Nginx反向代理
