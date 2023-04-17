@@ -124,7 +124,7 @@ class BaseLLMModel:
         def get_return_value():
             return chatbot, status_text
 
-        status_text = "开始实时传输回答……"
+        status_text = i18n("开始实时传输回答……")
         if fake_input:
             chatbot.append((fake_input, ""))
         else:
@@ -201,7 +201,7 @@ class BaseLLMModel:
             msg = "索引获取成功，生成回答中……"
             logging.info(msg)
             if local_embedding or self.model_type != ModelType.OpenAI:
-                embed_model = LangchainEmbedding(HuggingFaceEmbeddings())
+                embed_model = LangchainEmbedding(HuggingFaceEmbeddings(model_name = "sentence-transformers/distiluse-base-multilingual-cased-v2"))
             else:
                 embed_model = OpenAIEmbedding()
             # yield chatbot + [(inputs, "")], msg
@@ -245,10 +245,11 @@ class BaseLLMModel:
                 domain_name = urllib3.util.parse_url(result["href"]).host
                 reference_results.append([result["body"], result["href"]])
                 display_append.append(
-                    f"{idx+1}. [{domain_name}]({result['href']})\n"
+                    # f"{idx+1}. [{domain_name}]({result['href']})\n"
+                    f"<li><a href=\"{result['href']}\" target=\"_blank\">{domain_name}</a></li>\n"
                 )
             reference_results = add_source_numbers(reference_results)
-            display_append = "\n\n" + "".join(display_append)
+            display_append = "<ol>\n\n" + "".join(display_append) + "</ol>"
             real_inputs = (
                 replace_today(WEBSEARCH_PTOMPT_TEMPLATE)
                 .replace("{query}", real_inputs)
@@ -463,9 +464,9 @@ class BaseLLMModel:
 
     def set_key(self, new_access_key):
         self.api_key = new_access_key.strip()
-        msg = f"API密钥更改为了{hide_middle_chars(self.api_key)}"
+        msg = i18n("API密钥更改为了") + hide_middle_chars(self.api_key)
         logging.info(msg)
-        return new_access_key, msg
+        return self.api_key, msg
 
     def set_single_turn(self, new_single_turn):
         self.single_turn = new_single_turn
@@ -505,7 +506,7 @@ class BaseLLMModel:
         token_sum = 0
         for i in range(len(token_lst)):
             token_sum += sum(token_lst[: i + 1])
-        return f"Token 计数: {sum(token_lst)}，本次对话累计消耗了 {token_sum} tokens"
+        return i18n("Token 计数: ") + f"{sum(token_lst)}" + i18n("，本次对话累计消耗了 ") + f"{token_sum} tokens"
 
     def save_chat_history(self, filename, chatbot, user_name):
         if filename == "":

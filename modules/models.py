@@ -84,9 +84,9 @@ class OpenAIClient(BaseLLMModel):
                 usage_data = self._get_billing_data(usage_url)
             except Exception as e:
                 logging.error(f"获取API使用情况失败:" + str(e))
-                return f"**获取API使用情况失败**"
+                return i18n("**获取API使用情况失败**")
             rounded_usage = "{:.5f}".format(usage_data["total_usage"] / 100)
-            return f"**本月使用金额** \u3000 ${rounded_usage}"
+            return i18n("**本月使用金额** ") + f"\u3000 ${rounded_usage}"
         except requests.exceptions.ConnectTimeout:
             status_text = (
                 STANDARD_ERROR_MSG + CONNECTION_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
@@ -96,18 +96,11 @@ class OpenAIClient(BaseLLMModel):
             status_text = STANDARD_ERROR_MSG + READ_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
             return status_text
         except Exception as e:
-            logging.error(f"获取API使用情况失败:" + str(e))
+            logging.error(i18n("获取API使用情况失败:") + str(e))
             return STANDARD_ERROR_MSG + ERROR_RETRIEVE_MSG
 
     def set_token_upper_limit(self, new_upper_limit):
         pass
-
-    def set_key(self, new_access_key):
-        self.api_key = new_access_key.strip()
-        self._refresh_header()
-        msg = f"API密钥更改为了{hide_middle_chars(self.api_key)}"
-        logging.info(msg)
-        return msg
 
     @shared.state.switching_api_key  # 在不开启多账号模式的时候，这个装饰器不会起作用
     def _get_response(self, stream=False):
@@ -197,7 +190,7 @@ class OpenAIClient(BaseLLMModel):
                 try:
                     chunk = json.loads(chunk[6:])
                 except json.JSONDecodeError:
-                    print(f"JSON解析错误,收到的内容: {chunk}")
+                    print(i18n("JSON解析错误,收到的内容: ") + f"{chunk}")
                     error_msg += chunk
                     continue
                 if chunk_length > 6 and "delta" in chunk["choices"][0]:
@@ -235,25 +228,21 @@ class ChatGLM_Client(BaseLLMModel):
             quantified = False
             if "int4" in model_name:
                 quantified = True
-            if quantified:
-                model = AutoModel.from_pretrained(
+            model = AutoModel.from_pretrained(
                     model_source, trust_remote_code=True
-                ).half()
-            else:
-                model = AutoModel.from_pretrained(
-                    model_source, trust_remote_code=True
-                ).half()
+                )
             if torch.cuda.is_available():
                 # run on CUDA
                 logging.info("CUDA is available, using CUDA")
-                model = model.cuda()
+                model = model.half().cuda()
             # mps加速还存在一些问题，暂时不使用
             elif system_name == "Darwin" and model_path is not None and not quantified:
                 logging.info("Running on macOS, using MPS")
                 # running on macOS and model already downloaded
-                model = model.to("mps")
+                model = model.half().to("mps")
             else:
                 logging.info("GPU is not available, using CPU")
+                model = model.float()
             model = model.eval()
             CHATGLM_MODEL = model
 
@@ -483,8 +472,11 @@ class XMBot_Client(BaseLLMModel):
             "data": question
         }
         response = requests.post(self.url, json=data)
-        response = json.loads(response.text)
-        return response["data"], len(response["data"])
+        try:
+            response = json.loads(response.text)
+            return response["data"], len(response["data"])
+        except Exception as e:
+            return response.text, len(response.text)
 
 
 
@@ -497,7 +489,7 @@ def get_model(
     top_p=None,
     system_prompt=None,
 ) -> BaseLLMModel:
-    msg = f"模型设置为了： {model_name}"
+    msg = i18n("模型设置为了：") + f" {model_name}"
     model_type = ModelType.get_type(model_name)
     lora_selector_visibility = False
     lora_choices = []
