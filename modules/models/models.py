@@ -21,11 +21,11 @@ import aiohttp
 from enum import Enum
 import uuid
 
-from .presets import *
-from .llama_func import *
-from .utils import *
-from . import shared
-from .config import retrieve_proxy
+from ..presets import *
+from ..llama_func import *
+from ..utils import *
+from .. import shared
+from ..config import retrieve_proxy
 from modules import config
 from .base_model import BaseLLMModel, ModelType
 
@@ -38,12 +38,14 @@ class OpenAIClient(BaseLLMModel):
         system_prompt=INITIAL_SYSTEM_PROMPT,
         temperature=1.0,
         top_p=1.0,
+        user_name=""
     ) -> None:
         super().__init__(
             model_name=model_name,
             temperature=temperature,
             top_p=top_p,
             system_prompt=system_prompt,
+            user=user_name
         )
         self.api_key = api_key
         self.need_api_key = True
@@ -99,6 +101,8 @@ class OpenAIClient(BaseLLMModel):
             status_text = STANDARD_ERROR_MSG + READ_TIMEOUT_MSG + ERROR_RETRIEVE_MSG
             return status_text
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             logging.error(i18n("获取API使用情况失败:") + str(e))
             return STANDARD_ERROR_MSG + ERROR_RETRIEVE_MSG
 
@@ -137,7 +141,7 @@ class OpenAIClient(BaseLLMModel):
             payload["stop"] = self.stop_sequence
         if self.logit_bias is not None:
             payload["logit_bias"] = self.logit_bias
-        if self.user_identifier is not None:
+        if self.user_identifier:
             payload["user"] = self.user_identifier
 
         if stream:
@@ -207,10 +211,15 @@ class OpenAIClient(BaseLLMModel):
         if error_msg:
             raise Exception(error_msg)
 
+    def set_key(self, new_access_key):
+        ret = super().set_key(new_access_key)
+        self._refresh_header()
+        return ret
+
 
 class ChatGLM_Client(BaseLLMModel):
-    def __init__(self, model_name) -> None:
-        super().__init__(model_name=model_name)
+    def __init__(self, model_name, user_name="") -> None:
+        super().__init__(model_name=model_name, user=user_name)
         from transformers import AutoTokenizer, AutoModel
         import torch
         global CHATGLM_TOKENIZER, CHATGLM_MODEL
@@ -232,8 +241,8 @@ class ChatGLM_Client(BaseLLMModel):
             if "int4" in model_name:
                 quantified = True
             model = AutoModel.from_pretrained(
-                    model_source, trust_remote_code=True
-                )
+                model_source, trust_remote_code=True
+            )
             if torch.cuda.is_available():
                 # run on CUDA
                 logging.info("CUDA is available, using CUDA")
@@ -285,8 +294,9 @@ class LLaMA_Client(BaseLLMModel):
         self,
         model_name,
         lora_path=None,
+        user_name=""
     ) -> None:
-        super().__init__(model_name=model_name)
+        super().__init__(model_name=model_name, user=user_name)
         from lmflow.datasets.dataset import Dataset
         from lmflow.pipeline.auto_pipeline import AutoPipeline
         from lmflow.models.auto_model import AutoModel
@@ -385,9 +395,9 @@ class LLaMA_Client(BaseLLMModel):
             yield partial_text
 
 
-class XMBot_Client(BaseLLMModel):
-    def __init__(self, api_key):
-        super().__init__(model_name="xmbot")
+class XMChat(BaseLLMModel):
+    def __init__(self, api_key, user_name=""):
+        super().__init__(model_name="xmchat", user=user_name)
         self.api_key = api_key
         self.session_id = None
         self.reset()
@@ -395,9 +405,11 @@ class XMBot_Client(BaseLLMModel):
         self.image_path = None
         self.xm_history = []
         self.url = "https://xmbot.net/web"
+        self.last_conv_id = None
 
     def reset(self):
         self.session_id = str(uuid.uuid4())
+        self.last_conv_id = None
         return [], "已重置"
 
     def image_to_base64(self, image_path):
@@ -432,7 +444,8 @@ class XMBot_Client(BaseLLMModel):
     def try_read_image(self, filepath):
         def is_image_file(filepath):
             # 判断文件是否为图片
-            valid_image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff"]
+            valid_image_extensions = [
+                ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff"]
             file_extension = os.path.splitext(filepath)[1].lower()
             return file_extension in valid_image_extensions
 
@@ -443,6 +456,26 @@ class XMBot_Client(BaseLLMModel):
         else:
             self.image_bytes = None
             self.image_path = None
+
+    def like(self):
+        if self.last_conv_id is None:
+            return "点赞失败，你还没发送过消息"
+        data = {
+            "uuid": self.last_conv_id,
+            "appraise": "good"
+        }
+        requests.post(self.url, json=data)
+        return "👍点赞成功，感谢反馈～"
+
+    def dislike(self):
+        if self.last_conv_id is None:
+            return "点踩失败，你还没发送过消息"
+        data = {
+            "uuid": self.last_conv_id,
+            "appraise": "bad"
+        }
+        requests.post(self.url, json=data)
+        return "👎点踩成功，感谢反馈～"
 
     def prepare_inputs(self, real_inputs, use_websearch, files, reply_language, chatbot):
         fake_inputs = real_inputs
@@ -461,6 +494,8 @@ class XMBot_Client(BaseLLMModel):
                 chatbot = chatbot + [((self.image_path,), None)]
             if self.image_bytes is not None:
                 logging.info("使用图片作为输入")
+                # XMChat的一轮对话中实际上只能处理一张图片
+                self.reset()
                 conv_id = str(uuid.uuid4())
                 data = {
                     "user_id": self.api_key,
@@ -477,6 +512,7 @@ class XMBot_Client(BaseLLMModel):
     def get_answer_at_once(self):
         question = self.history[-1]["content"]
         conv_id = str(uuid.uuid4())
+        self.last_conv_id = conv_id
         data = {
             "user_id": self.api_key,
             "session_id": self.session_id,
@@ -492,8 +528,6 @@ class XMBot_Client(BaseLLMModel):
             return response.text, len(response.text)
 
 
-
-
 def get_model(
     model_name,
     lora_model_path=None,
@@ -501,6 +535,7 @@ def get_model(
     temperature=None,
     top_p=None,
     system_prompt=None,
+    user_name=""
 ) -> BaseLLMModel:
     msg = i18n("模型设置为了：") + f" {model_name}"
     model_type = ModelType.get_type(model_name)
@@ -520,10 +555,11 @@ def get_model(
                 system_prompt=system_prompt,
                 temperature=temperature,
                 top_p=top_p,
+                user_name=user_name,
             )
         elif model_type == ModelType.ChatGLM:
             logging.info(f"正在加载ChatGLM模型: {model_name}")
-            model = ChatGLM_Client(model_name)
+            model = ChatGLM_Client(model_name, user_name=user_name)
         elif model_type == ModelType.LLaMA and lora_model_path == "":
             msg = f"现在请为 {model_name} 选择LoRA模型"
             logging.info(msg)
@@ -540,11 +576,18 @@ def get_model(
                 msg += " + No LoRA"
             else:
                 msg += f" + {lora_model_path}"
-            model = LLaMA_Client(model_name, lora_model_path)
-        elif model_type == ModelType.XMBot:
-            if os.environ.get("XMBOT_API_KEY") != "":
-                access_key = os.environ.get("XMBOT_API_KEY")
-            model = XMBot_Client(api_key=access_key)
+            model = LLaMA_Client(
+                model_name, lora_model_path, user_name=user_name)
+        elif model_type == ModelType.XMChat:
+            if os.environ.get("XMCHAT_API_KEY") != "":
+                access_key = os.environ.get("XMCHAT_API_KEY")
+            model = XMChat(api_key=access_key, user_name=user_name)
+        elif model_type == ModelType.StableLM:
+            from .StableLM import StableLM_Client
+            model = StableLM_Client(model_name, user_name=user_name)
+        elif model_type == ModelType.MOSS:
+            from .MOSS import MOSS_Client
+            model = MOSS_Client(model_name, user_name=user_name)
         elif model_type == ModelType.Unknown:
             raise ValueError(f"未知模型: {model_name}")
         logging.info(msg)

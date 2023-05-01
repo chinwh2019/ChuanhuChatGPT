@@ -67,17 +67,19 @@ ONLINE_MODELS = [
     "gpt-4-0314",
     "gpt-4-32k",
     "gpt-4-32k-0314",
-    "xmbot",
+    "xmchat",
 ]
 
 LOCAL_MODELS = [
     "chatglm-6b",
     "chatglm-6b-int4",
     "chatglm-6b-int4-qe",
+    "StableLM",
+    "MOSS",
     "llama-7b-hf",
     "llama-13b-hf",
     "llama-30b-hf",
-    "llama-65b-hf"
+    "llama-65b-hf",
 ]
 
 if os.environ.get('HIDE_LOCAL_MODELS', 'false') == 'true':
@@ -162,7 +164,7 @@ ALREADY_CONVERTED_MARK = "<!-- ALREADY CONVERTED BY PARSER. -->"
 
 small_and_beautiful_theme = gr.themes.Soft(
         primary_hue=gr.themes.Color(
-            c50="#02C160",
+            c50="rgba(2, 193, 96, 0.1)",
             c100="rgba(2, 193, 96, 0.2)",
             c200="#02C160",
             c300="rgba(2, 193, 96, 0.32)",

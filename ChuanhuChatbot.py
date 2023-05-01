@@ -10,7 +10,7 @@ from modules.config import *
 from modules.utils import *
 from modules.presets import *
 from modules.overwrites import *
-from modules.models import get_model
+from modules.models.models import get_model
 
 
 gr.Chatbot._postprocess_chat_messages = postprocess_chat_messages
@@ -27,6 +27,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     user_name = gr.State("")
     promptTemplates = gr.State(load_template(get_template_names(plain=True)[0], mode=2))
     user_question = gr.State("")
+    assert type(my_api_key)==str
     user_api_key = gr.State(my_api_key)
     current_model = gr.State(create_new_model)
 
@@ -37,15 +38,6 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
         status_display = gr.Markdown(get_geoip(), elem_id="status_display")
     with gr.Row(elem_id="float_display"):
         user_info = gr.Markdown(value="getting user info...", elem_id="user_info")
-
-        # https://github.com/gradio-app/gradio/pull/3296
-        def create_greeting(request: gr.Request):
-            if hasattr(request, "username") and request.username: # is not None or is not ""
-                logging.info(f"Get User Name: {request.username}")
-                return gr.Markdown.update(value=f"User: {request.username}"), request.username
-            else:
-                return gr.Markdown.update(value=f"User: default", visible=False), ""
-        demo.load(create_greeting, inputs=None, outputs=[user_info, user_name])
 
     with gr.Row().style(equal_height=True):
         with gr.Column(scale=5):
@@ -62,18 +54,23 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                     cancelBtn = gr.Button(value="", variant="secondary", visible=False, elem_id="cancel_btn")
             with gr.Row():
                 emptyBtn = gr.Button(
-                    i18n("🧹 新的对话"),
+                    i18n("🧹 新的对话"), elem_id="empty_btn"
                 )
                 retryBtn = gr.Button(i18n("🔄 重新生成"))
                 delFirstBtn = gr.Button(i18n("🗑️ 删除最旧对话"))
                 delLastBtn = gr.Button(i18n("🗑️ 删除最新对话"))
+                with gr.Row(visible=False) as like_dislike_area:
+                    with gr.Column(min_width=20, scale=1):
+                        likeBtn = gr.Button(i18n("👍"))
+                    with gr.Column(min_width=20, scale=1):
+                        dislikeBtn = gr.Button(i18n("👎"))
 
         with gr.Column():
             with gr.Column(min_width=50, scale=1):
                 with gr.Tab(label=i18n("模型")):
                     keyTxt = gr.Textbox(
                         show_label=True,
-                        placeholder=f"OpenAI API-key...",
+                        placeholder=f"Your API-key...",
                         value=hide_middle_chars(user_api_key.value),
                         type="password",
                         visible=not HIDE_MY_KEY,
@@ -95,13 +92,16 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                         )
                         single_turn_checkbox = gr.Checkbox(label=i18n("单轮对话"), value=False)
                         use_websearch_checkbox = gr.Checkbox(label=i18n("使用在线搜索"), value=False)
+                        render_latex_checkbox = gr.Checkbox(
+                            label=i18n("渲染LaTeX公式"), value=render_latex, interactive=True, elem_id="render_latex_checkbox"
+                        )
                     language_select_dropdown = gr.Dropdown(
                         label=i18n("选择回复语言（针对搜索&索引功能）"),
                         choices=REPLY_LANGUAGES,
                         multiselect=False,
                         value=REPLY_LANGUAGES[0],
                     )
-                    index_files = gr.Files(label=i18n("上传索引文件"), type="file")
+                    index_files = gr.Files(label=i18n("上传"), type="file")
                     two_column = gr.Checkbox(label=i18n("双栏pdf"), value=advance_docs["pdf"].get("two_column", False))
                     # TODO: 公式ocr
                     # formula_ocr = gr.Checkbox(label=i18n("识别公式"), value=advance_docs["pdf"].get("formula_ocr", False))
@@ -144,8 +144,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
                                     historyFileSelectDropdown = gr.Dropdown(
                                         label=i18n("从列表中加载对话"),
                                         choices=get_history_names(plain=True),
-                                        multiselect=False,
-                                        value=get_history_names(plain=True)[0],
+                                        multiselect=False
                                     )
                                 with gr.Column(scale=1):
                                     historyRefreshBtn = gr.Button(i18n("🔄 刷新"))
@@ -269,6 +268,17 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
 
     gr.Markdown(CHUANHU_DESCRIPTION, elem_id="description")
     gr.HTML(FOOTER.format(versions=versions_html()), elem_id="footer")
+    # https://github.com/gradio-app/gradio/pull/3296
+    def create_greeting(request: gr.Request):
+        if hasattr(request, "username") and request.username: # is not None or is not ""
+            logging.info(f"Get User Name: {request.username}")
+            user_info, user_name = gr.Markdown.update(value=f"User: {request.username}"), request.username
+        else:
+            user_info, user_name = gr.Markdown.update(value=f"", visible=False), ""
+        current_model = get_model(model_name = MODELS[DEFAULT_MODEL], access_key = my_api_key)[0]
+        current_model.set_user_identifier(user_name)
+        return user_info, user_name, current_model, toggle_like_btn_visibility(DEFAULT_MODEL), *current_model.auto_load(), get_history_names(False, user_name)
+    demo.load(create_greeting, inputs=None, outputs=[user_info, user_name, current_model, like_dislike_area, systemPromptTxt, chatbot, historyFileSelectDropdown], api_name="load")
     chatgpt_predict_args = dict(
         fn=predict,
         inputs=[
@@ -309,7 +319,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
 
     load_history_from_file_args = dict(
         fn=load_chat_history,
-        inputs=[current_model, historyFileSelectDropdown, chatbot, user_name],
+        inputs=[current_model, historyFileSelectDropdown, user_name],
         outputs=[saveFileName, systemPromptTxt, chatbot]
     )
 
@@ -320,7 +330,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     user_input.submit(**transfer_input_args).then(**chatgpt_predict_args).then(**end_outputing_args)
     user_input.submit(**get_usage_args)
 
-    submitBtn.click(**transfer_input_args).then(**chatgpt_predict_args).then(**end_outputing_args)
+    submitBtn.click(**transfer_input_args).then(**chatgpt_predict_args, api_name="predict").then(**end_outputing_args)
     submitBtn.click(**get_usage_args)
 
     index_files.change(handle_file_upload, [current_model, index_files, chatbot], [index_files, chatbot, status_display])
@@ -360,14 +370,29 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
         show_progress=False
     )
 
+    likeBtn.click(
+        like,
+        [current_model],
+        [status_display],
+        show_progress=False
+    )
+
+    dislikeBtn.click(
+        dislike,
+        [current_model],
+        [status_display],
+        show_progress=False
+    )
+
     two_column.change(update_doc_config, [two_column], None)
 
     # LLM Models
-    keyTxt.change(set_key, [current_model, keyTxt], [user_api_key, status_display]).then(**get_usage_args)
+    keyTxt.change(set_key, [current_model, keyTxt], [user_api_key, status_display], api_name="set_key").then(**get_usage_args)
     keyTxt.submit(**get_usage_args)
     single_turn_checkbox.change(set_single_turn, [current_model, single_turn_checkbox], None)
-    model_select_dropdown.change(get_model, [model_select_dropdown, lora_select_dropdown, user_api_key, temperature_slider, top_p_slider, systemPromptTxt], [current_model, status_display, lora_select_dropdown], show_progress=True)
-    lora_select_dropdown.change(get_model, [model_select_dropdown, lora_select_dropdown, user_api_key, temperature_slider, top_p_slider, systemPromptTxt], [current_model, status_display], show_progress=True)
+    model_select_dropdown.change(get_model, [model_select_dropdown, lora_select_dropdown, user_api_key, temperature_slider, top_p_slider, systemPromptTxt, user_name], [current_model, status_display, lora_select_dropdown], show_progress=True, api_name="get_model")
+    model_select_dropdown.change(toggle_like_btn_visibility, [model_select_dropdown], [like_dislike_area], show_progress=False)
+    lora_select_dropdown.change(get_model, [model_select_dropdown, lora_select_dropdown, user_api_key, temperature_slider, top_p_slider, systemPromptTxt, user_name], [current_model, status_display], show_progress=True)
 
     # Template
     systemPromptTxt.change(set_system_prompt, [current_model, systemPromptTxt], None)
@@ -401,7 +426,7 @@ with gr.Blocks(css=customCSS, theme=small_and_beautiful_theme) as demo:
     )
     historyRefreshBtn.click(get_history_names, [gr.State(False), user_name], [historyFileSelectDropdown])
     historyFileSelectDropdown.change(**load_history_from_file_args)
-    downloadFile.change(**load_history_from_file_args)
+    downloadFile.change(upload_chat_history, [current_model, downloadFile, user_name], [saveFileName, systemPromptTxt, chatbot])
 
     # Advanced
     max_context_length_slider.change(set_token_upper_limit, [current_model, max_context_length_slider], None)
